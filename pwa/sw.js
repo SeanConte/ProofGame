@@ -1,20 +1,43 @@
-// Basic cache-first service worker shell.
-// NOTE: This file is present but NOT registered by default. To enable, set
-// config.pwaEnabled = true and register from production code only.
+// Basic cache-first service worker for your static app.
+// NOTE: Only register this in production when you actually want PWA behavior.
+// (Register from app.js when config.pwaEnabled === true.)
 
-const CACHE_NAME = 'rules-shell-v1';
+const CACHE_NAME = 'proof-assistant-shell-v1';
+
+// Files to cache for offline use — match your current layout.
 const ASSETS = [
-  '/rules/index.html', '/rules/styles.css', '/rules/app.js', '/rules/config.js',
-  '/assets/icons/app-192.png', '/assets/icons/app-512.png'
+  '/index.html',
+  '/rules/styles.css',
+  '/rules/app.js',
+  '/rules/config.js',
+  // If/when you add real icons, un-comment and ensure the files exist:
+  // '/assets/icons/app-192.png',
+  // '/assets/icons/app-512.png',
 ];
 
-self.addEventListener('install', (e)=>{
-  e.waitUntil(caches.open(CACHE_NAME).then(c=>c.addAll(ASSETS)));
+// Install: pre-cache the app shell.
+self.addEventListener('install', (event) => {
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS))
+  );
+  self.skipWaiting();
 });
 
-self.addEventListener('fetch', (e)=>{
-  // cache-first for shell
-  e.respondWith(caches.match(e.request).then(r=>r || fetch(e.request)));
+// Activate: clean up old caches if the name changed.
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    caches.keys().then((keys) =>
+      Promise.all(keys.map((key) => {
+        if (key !== CACHE_NAME) return caches.delete(key);
+      }))
+    )
+  );
+  self.clients.claim();
 });
 
-// When enabling, consider adding a versioned cache cleanup and offline fallback.
+// Fetch: cache-first for known assets; fall back to network.
+self.addEventListener('fetch', (event) => {
+  event.respondWith(
+    caches.match(event.request).then((cached) => cached || fetch(event.request))
+  );
+});

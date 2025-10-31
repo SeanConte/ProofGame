@@ -4,3 +4,5 @@ export const config = {
   maxLines: 6,
   lockMs: 200
 };
+
+if (typeof window !== "undefined") window.config = config;
