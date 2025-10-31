@@ -1317,7 +1317,7 @@ if (document.readyState === 'loading') {
 // Register the service worker (only if PWA enabled in config)
 if (config.pwaEnabled && 'serviceWorker' in navigator) {
   navigator.serviceWorker
-    .register('/sw.js')
+    .register('./sw.js')
     .then(() => console.log('[PWA] Service Worker registered'))
     .catch(err => console.error('[PWA] Registration failed', err));
 }

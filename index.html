@@ -6,11 +6,14 @@
 
   <title>Proof Game</title>
 
-  <!-- Style lives in /rules -->
+  <!-- Styles live in /rules -->
   <link rel="stylesheet" href="./rules/styles.css">
 
-  <!-- Optional favicon if you have one at repo root -->
-  <link rel="icon" href="./favicon.png" type="image/png">
+  <!-- Favicon lives in /rules -->
+  <link rel="icon" href="./rules/favicon.png" type="image/png">
+
+  <!-- Optional: only include if you have real icons -->
+  <!-- <link rel="manifest" href="./manifest.webmanifest"> -->
 </head>
 <body>
   <!-- Top bar -->
@@ -33,10 +36,17 @@
     <section id="playarea" class="playarea" aria-label="Play area"></section>
   </main>
 
-  <!-- Menu overlay (app.js uses #menu) -->
-  <div id="menu" class="menu" hidden></div>
+  <!-- Start menu (required for the game to appear) -->
+  <div id="menu" class="menu">
+    <h1>Proof Game</h1>
+    <div class="menu-buttons">
+      <button data-diff="easy">Easy</button>
+      <button data-diff="medium">Medium</button>
+      <button data-diff="hard">Hard</button>
+    </div>
+  </div>
 
-  <!-- Settings panel (IDs referenced by app.js) -->
+  <!-- Settings panel -->
   <div id="settings-panel" class="settings-panel" hidden>
     <div class="settings-card">
       <header class="settings-header">
@@ -66,7 +76,7 @@
     </div>
   </div>
 
-  <!-- Iframe/banner helpers used by app.js -->
+  <!-- Iframe/banner helpers -->
   <div id="iframe-banner" hidden></div>
   <button id="dismiss-banner" hidden>Dismiss</button>
 
