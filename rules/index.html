@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0b0b0b">
+  <!-- <link rel="manifest" href="/pwa/manifest.webmanifest"> -->
+  <title>→-Elim Sprint — Rules Practice</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="icon" href="favicon.png" type="image/png">
+  <script type="module" src="config.js"></script>
+  <script type="module" src="app.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="score" id="score">Score: 0 · Streak: 0</div>
+    <button id="settings" aria-label="Settings" class="icon-btn" title="Settings">⚙️</button>
+  </header>
+
+  <!-- Settings panel (hidden by default) -->
+  <div id="settings-panel" class="settings-panel" hidden>
+    <div class="settings-card" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+      <h3 id="settings-title">Settings</h3>
+      <label for="theme-select">Theme</label>
+      <select id="theme-select">
+        <option value="dark">Dark</option>
+        <option value="light">Light</option>
+        <option value="auto">Auto (system)</option>
+        <option value="neon">Neon (sprint)</option>
+      </select>
+      <div style="height:12px"></div>
+      <div style="display:flex;gap:8px;justify-content:space-between;align-items:center">
+        <button id="settings-change-diff">Change difficulty</button>
+        <div style="display:flex;gap:8px;justify-content:flex-end">
+          <button id="settings-confirm">Confirm</button>
+          <button id="settings-cancel">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pre-game difficulty menu -->
+  <div id="menu" class="menu">
+    <h1>Rules Practice</h1>
+    <p>Select difficulty</p>
+    <div class="menu-buttons">
+      <button type="button" data-diff="easy">Easy (6)</button>
+      <button type="button" data-diff="medium">Medium (9)</button>
+      <button type="button" data-diff="hard">Hard (12)</button>
+    </div>
+  </div>
+
+  <main class="container">
+    <div id="iframe-banner" class="banner" hidden>
+      <span>Open full screen</span>
+      <a id="open-full" href="" target="_top">Open</a>
+      <button id="dismiss-banner" aria-label="Dismiss">×</button>
+    </div>
+
+    <section id="playarea">
+      <div id="lines" role="listbox" aria-label="Statements" class="lines" ></div>
+    </section>
+
+    <div id="toast" role="status" aria-live="polite" class="toast" hidden></div>
+  </main>
+
+  <nav class="bottombar">
+    <button id="pause">Pause</button>
+    <button id="reset">Reset</button>
+  </nav>
+
+  <!-- Service worker registration explained but not active -->
+  <script type="module">
+    import {config} from './config.js';
+    // To enable in production: uncomment and ensure config.pwaEnabled === true
+    // if (config.pwaEnabled && 'serviceWorker' in navigator) {
+    //   navigator.serviceWorker.register('/pwa/sw.js');
+    // }
+  </script>
+</body>
+</html>

@@ -1,0 +1,143 @@
+:root{
+  --bg:#0b0b0b;
+  --fg:#e6eef8;
+  --muted:#94a3b8;
+  --accent:#6ee7b7;
+  --good:#16a34a;
+  --bad:#ef4444;
+  --surface:#161B22;
+  --transition: 180ms ease;
+  --focus-ring: 3px;
+  --gap:0.75rem;
+  --radius:12px;
+  --hit:48px;
+  --max-width:740px;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  background:var(--bg);color:var(--fg);font-family:system-ui,-apple-system,Segoe UI,Roboto,'Helvetica Neue',Arial;
+  -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
+  display:flex;flex-direction:column;align-items:center;gap:var(--gap);
+}
+.container{width:100%;max-width:var(--max-width);padding:1rem}
+.topbar{width:100%;max-width:var(--max-width);display:flex;justify-content:space-between;align-items:center;padding:0 1rem}
+.score{font-size:clamp(0.95rem,2.8vw,1.05rem);color:var(--muted)}
+.icon-btn{background:transparent;border:0;color:var(--fg);font-size:1.2rem;padding:8px}
+
+.lines{display:grid;gap:0.5rem;margin-top:1rem}
+/* Single-column flow: active lines scroll under history */
+.history{display:grid;gap:0.5rem;margin-bottom:0.5rem}
+.lines{display:grid;gap:0.5rem;grid-template-columns:1fr}
+/* Mobile: single column; full-width buttons */
+.lines button, .history button{appearance:none;border:0;background:var(--surface);color:var(--fg);text-align:left;padding:12px 16px;min-height:var(--hit);border-radius:10px;display:flex;align-items:center;gap:12px;font-size:clamp(1rem,4.5vw,1.15rem);touch-action:manipulation;-webkit-tap-highlight-color:transparent;transition:transform var(--transition), opacity var(--transition), box-shadow var(--transition), outline-color var(--transition), filter var(--transition)}
+.lines button:active{transform:scale(0.995);opacity:0.98}
+.lines button[aria-pressed="true"]{outline:var(--focus-ring) solid var(--accent);box-shadow:0 0 12px color-mix(in srgb, var(--accent) 40%, transparent)}
+.lines button:focus{outline:var(--focus-ring) dashed var(--muted);outline-offset:2px}
+
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:20%;background:#071823;color:var(--fg);padding:10px 14px;border-radius:10px;display:flex;align-items:center;gap:8px;box-shadow:0 6px 20px rgba(0,0,0,0.6)}
+.toast.good{border:2px solid var(--good)}
+.toast.bad{border:2px solid var(--bad)}
+
+.bottombar{position:fixed;left:0;right:0;bottom:0;display:flex;justify-content:space-between;padding:calc(env(safe-area-inset-bottom) + 8px) 12px;background:linear-gradient(180deg,transparent,rgba(0,0,0,0.6));max-width:var(--max-width);margin:auto}
+.bottombar button{min-height:44px;padding:10px 14px;border-radius:8px;border:0;background:#0f1724;color:var(--fg)}
+
+.banner{background:#072233;color:var(--fg);padding:8px 12px;border-radius:10px;display:flex;gap:8px;align-items:center}
+.banner a{color:var(--accent);text-decoration:underline}
+
+/* History (used lines) */
+.history button{background:#0b1116;color:var(--muted);opacity:0.6}
+.history button{outline: none !important; box-shadow: none !important;}
+.consequent{outline:3px solid var(--accent);box-shadow:0 6px 16px rgba(110,231,183,0.12)}
+.merge-over{position:relative;z-index:5}
+.fading{opacity:0;transform:translateY(-6px)}
+
+/* Settings panel */
+.settings-panel{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.5);z-index:50}
+.settings-panel[hidden]{display:none}
+.settings-card{background:var(--bg);color:var(--fg);padding:18px;border-radius:12px;min-width:260px;box-shadow:0 12px 40px rgba(0,0,0,0.6)}
+.settings-card h3{margin-top:0}
+
+/* Light theme overrides */
+:root[data-theme="light"]{ --bg:#f7fafc; --fg:#0b1220; --muted:#475569; --accent:#0ea5a4; --good:#059669; --bad:#dc2626 }
+
+/* Pre-game menu */
+.menu{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--bg);color:var(--fg);padding:20px}
+.menu h1{margin:0 0 8px 0}
+.menu-buttons{display:flex;flex-direction:column;gap:10px;width:100%;max-width:320px}
+.menu button{padding:12px;border-radius:10px;border:0;background:#0f1724;color:var(--fg);font-size:1.05rem}
+
+/* Hide via attribute guarantees no hitbox */
+#menu[hidden], #settings-panel[hidden] { display: none !important; }
+/* When we use a “hidden” class instead of the attribute, prevent clicks */
+.is-hidden { opacity: 0; pointer-events: none; }
+/* Ensure overlay only captures clicks when visible */
+.settings-panel { pointer-events: auto; }
+.settings-panel.is-hidden { pointer-events: none; }
+
+/* Pointer cursor rules */
+button, .menu button, #settings, .icon-btn, [data-diff] { cursor: pointer; }
+button:disabled { cursor: not-allowed; }
+.menu button:hover, .menu button:focus, .settings-card button:hover, .settings-card button:focus{ outline:2px solid var(--accent); transform:translateY(-1px); }
+
+/* Hide menu when playing */
+.menu[hidden]{display:none}
+
+/* Safety nets: ensure hidden elements do not create hitboxes and interactive cues */
+[hidden]{ display: none !important; }
+.is-hidden{ opacity: 0; pointer-events: none; }
+.settings-panel[hidden], .settings-panel.is-hidden{ pointer-events: none !important; }
+.toast{ pointer-events: none; }
+
+/* Keep pointer cursor for interactive controls */
+button, [data-diff], #settings, .icon-btn { cursor: pointer; }
+button:disabled { cursor: not-allowed; }
+
+/* Prevent overlap between content and bottom bar */
+main.container, #playarea, #lines {
+  padding-bottom: calc(84px + env(safe-area-inset-bottom));
+}
+
+/* Ensure bottombar floats above content and allows clicks */
+.bottombar {
+  z-index: 20; /* stays above lines visually */
+  pointer-events: auto;
+  padding-bottom: calc(env(safe-area-inset-bottom) + 8px);
+}
+
+/* Neon theme (sprint) */
+:root[data-theme="neon"]{
+  --bg:#0B0F14;
+  --surface:#121826;
+  --fg:#E5E7EB;
+  --muted:#94A3B8;
+  --accent:#06B6D4;
+  --good:#22D3EE;
+  --bad:#FB7185;
+  --spent:#475569;
+}
+
+/* Micro-animations and toast motion */
+@media (prefers-reduced-motion: no-preference){
+  @keyframes pulse-valid {
+    0% { transform: scale(1); box-shadow: 0 0 0 rgba(0,0,0,0); }
+    50% { transform: scale(1.04); box-shadow: 0 0 16px color-mix(in srgb, var(--good) 50%, transparent); }
+    100% { transform: scale(1); box-shadow: 0 0 0 rgba(0,0,0,0); }
+  }
+  @keyframes shake-error {
+    0%,100% { transform: translateX(0); }
+    20% { transform: translateX(-6px); }
+    40% { transform: translateX(5px); }
+    60% { transform: translateX(-4px); }
+    80% { transform: translateX(3px); }
+  }
+  .ui-valid { animation: pulse-valid 220ms ease; }
+  .ui-error { animation: shake-error 180ms ease; }
+}
+
+@keyframes toast-in { from { opacity:0; transform: translate(-50%, 10px);} to { opacity:1; transform: translate(-50%, 0);} }
+@keyframes toast-out { from { opacity:1;} to { opacity:0;} }
+.toast.show { animation: toast-in 160ms ease; }
+.toast.hide { animation: toast-out 120ms ease forwards; }
+
