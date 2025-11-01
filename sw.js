@@ -6,10 +6,10 @@ const CACHE_NAME = 'proof-assistant-shell-v1';
 
 // Files to cache for offline use — match your current layout.
 const ASSETS = [
-  '/index.html',
-  '/rules/styles.css',
-  '/rules/app.js',
-  '/rules/config.js',
+  './index.html',
+  './rules/styles.css',
+  './rules/app.js',
+  './rules/config.js',
   // If/when you add real icons, un-comment and ensure the files exist:
   // '/assets/icons/app-192.png',
   // '/assets/icons/app-512.png',

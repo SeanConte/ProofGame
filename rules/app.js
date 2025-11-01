@@ -22,10 +22,11 @@ const PREFERS_REDUCED = window.matchMedia && window.matchMedia('(prefers-reduced
 const SAFE_MODE = new URLSearchParams(location.search).has('safe') || localStorage.getItem('rules_safe') === '1';
 
 const modes = {
-  easy: { N:6, allowConditional:false, maxDepthConj:0 },
-  medium: { N:9, allowConditional:false, maxDepthConj:2 },
-  hard: { N:12, allowConditional:true, maxDepthConj:2 }
+  easy:   { N:8, allowConditional:false, maxDepthConj:0 },
+  medium: { N:8, allowConditional:false, maxDepthConj:2 },
+  hard:   { N:8, allowConditional:true,  maxDepthConj:2 }
 };
+
 
 /* ============================================================================
    RNG & DETERMINISTIC HELPERS
@@ -79,20 +80,22 @@ function cloneExpr(e){
   return null;
 }
 
-function exprText(e){
+function exprText(e, isSubExpr = false){
   if (!e) return '';
   const kind = e.kind || e.type;
   if (!kind) return '';
   if (kind === 'atom') return (e.sym || e.v) || '';
   if (kind === 'conj' || kind === 'and'){
-    const L = exprText(e.left);
-    const R = exprText(e.right);
-    return `(${L} ∧ ${R})`;
+    const L = exprText(e.left, true);
+    const R = exprText(e.right, true);
+    const result = `${L} ∧ ${R}`;
+    return isSubExpr ? `(${result})` : result;
   }
   if (kind === 'imp' || kind === '->'){
-    const L = exprText(e.left);
-    const R = exprText(e.right);
-    return `(${L} → ${R})`;
+    const L = exprText(e.left, true);
+    const R = exprText(e.right, true);
+    const result = `${L} → ${R}`;
+    return isSubExpr ? `(${result})` : result;
   }
   return '';
 }
@@ -103,10 +106,10 @@ function exprKey(e){
   if (!kind) return '';
   if (kind === 'atom') return String(e.sym || e.v || '');
   if (kind === 'conj' || kind === 'and'){
-    return '(' + exprKey(e.left) + '∧' + exprKey(e.right) + ')';
+    return exprKey(e.left) + '∧' + exprKey(e.right);
   }
   if (kind === 'imp' || kind === '->'){
-    return '(' + exprKey(e.left) + '→' + exprKey(e.right) + ')';
+    return exprKey(e.left) + '→' + exprKey(e.right);
   }
   return '';
 }
@@ -201,14 +204,76 @@ function normalizeLine(line){
 function displayText(line){
   if (!line) return '[invalid]';
   try{
-    if (line.kind === 'imp') return `${exprText(line.left)} → ${exprText(line.right)}`;
+    if (line.kind === 'imp') return `${exprText(line.left, true)} → ${exprText(line.right, true)}`;
     if (line.kind === 'ante' || line.kind === 'derived') return `${exprText(line.expr)}`;
-    if (line.kind === 'conj') return `${exprText(line.left)} ∧ ${exprText(line.right)}`;
+    if (line.kind === 'conj') return `${exprText(line.left, true)} ∧ ${exprText(line.right, true)}`;
     return '[invalid]';
   }catch(e){ 
     return '[invalid]'; 
   }
 }
+
+// Helper: logic-only fallback for when animation elements aren't found
+function replaceWithConsequentAndRefill(anteIdx, impIdx){
+  const anteLine = current.items[anteIdx];
+  const impLine  = current.items[impIdx];
+  if (!impLine || impLine.kind !== 'imp') return;
+
+  // Build consequent
+  const consequent = mkLineAnte(impLine.right);
+  
+  // Clone array with consequent in place
+  let next = [...current.items];
+  next[impIdx] = consequent;
+  
+  // Analyze what we have without the filler
+  const beforeFiller = next.filter((_, idx) => idx !== anteIdx);
+  const { anteMap, impMap } = analyzeBoardState(beforeFiller);
+  const pairCountBefore = distinctPairKeys(beforeFiller).size;
+  
+  let filler;
+  
+  // If we'll have fewer than 2 pairs, make filler create a match
+  if (pairCountBefore < 2) {
+    const impNeedingAnte = [...impMap.keys()].find(k => !anteMap.has(k));
+    if (impNeedingAnte) {
+      const leftExpr = beforeFiller.find(l => l.kind==='imp' && exprKey(l.left)===impNeedingAnte)?.left;
+      filler = mkLineAnte(cloneExpr(leftExpr));
+    } else {
+      const anteNeedingImp = [...anteMap.keys()].find(k => !impMap.has(k));
+      if (anteNeedingImp) {
+        const leftExpr = beforeFiller.find(l => (l.kind==='ante'||l.kind==='derived') && exprKey(l.expr)===anteNeedingImp)?.expr;
+        const rightExpr = pickExprByDifficulty(gameOpts);
+        filler = mkLineImp(cloneExpr(leftExpr), rightExpr);
+      } else {
+        const leftExpr = mkAtom(pickSymbol());
+        const rightExpr = pickExprByDifficulty(gameOpts);
+        filler = mkLineAnte(cloneExpr(leftExpr));
+        next.push(mkLineImp(cloneExpr(leftExpr), rightExpr));
+      }
+    }
+  } else {
+    const forbidden = exprKey(impLine.left);
+    filler = genDistractorAvoiding(forbidden);
+  }
+  
+  next[anteIdx] = filler;
+
+  try { assertWellFormedBoard(next); } catch(e){ console.warn('Fallback validation', e); }
+
+  current.items = next;
+  state.selected = [];
+  render();
+
+  const newConsEl = el.lines.querySelector(`[data-id="${consequent.id}"]`);
+  if (newConsEl){
+    newConsEl.classList.add('consequent', 'consequent-pulse');
+    setTimeout(()=> newConsEl.classList.remove('consequent', 'consequent-pulse'),
+      ANIMATION_TIMINGS.CONSEQUENT_HIGHLIGHT_MS);
+  }
+}
+
+
 
 /* ============================================================================
    VALIDATION
@@ -628,8 +693,28 @@ const state = {
   score: 0,
   streak: 0,
   selected: [],
-  locked: false
+  locked: false,
+  secs: 0
 };
+let timerId = null;
+
+function startTimer(){
+  clearInterval(timerId);
+  state.secs = 0;
+  timerId = setInterval(()=>{
+    state.secs += 1;
+    updateScore(); // reuse to refresh timer text
+  }, 1000);
+}
+
+function stopTimer(){ clearInterval(timerId); timerId = null; }
+
+function fmtTime(secs){
+  const m = Math.floor(secs/60).toString().padStart(2,'0');
+  const s = (secs%60).toString().padStart(2,'0');
+  return `${m}:${s}`;
+}
+
 
 let history = [];
 let current = { items: [] };
@@ -648,6 +733,10 @@ const el = {
   toast: document.getElementById('toast'),
   pause: document.getElementById('pause'),
   reset: document.getElementById('reset'),
+  scoreVal: document.getElementById('scoreVal'),
+  streakVal: document.getElementById('streakVal'),
+  timerVal: document.getElementById('timerVal'),
+  lines: document.getElementById('lines'),
   iframeBanner: document.getElementById('iframe-banner'),
   openFull: document.getElementById('open-full'),
   dismissBanner: document.getElementById('dismiss-banner'),
@@ -658,10 +747,10 @@ const el = {
   menu: document.getElementById('menu')
 };
 
-el.history.className='history';
-if (el.lines && el.lines.parentNode) {
-  el.lines.parentNode.insertBefore(el.history, el.lines);
-}
+// el.history.className='history';
+// if (el.lines && el.lines.parentNode) {
+//   el.lines.parentNode.insertBefore(el.history, el.lines);
+// }
 
 /* ============================================================================
    THEME MANAGEMENT
@@ -883,79 +972,63 @@ function playFlip(container, beforeMap, afterMap){
    ============================================================================ */
 
 function updateScore(){
-  if (el.score) {
-    el.score.textContent = `Score: ${state.score} · Streak: ${state.streak}`;
-  }
+  if (el.scoreVal)  el.scoreVal.textContent  = String(state.score);
+  if (el.streakVal) el.streakVal.textContent = String(state.streak);
+  if (el.timerVal)  el.timerVal.textContent  = fmtTime(state.secs);
 }
 
+
 function render(){
-  if (!el.lines || !el.history) return;
-  
-  el.lines.innerHTML='';
-  el.history.innerHTML='';
-  
+  if (!el.lines) return;
+
+  el.lines.innerHTML = '';
   assertWellFormedBoard(current.items);
-  
-  // Render history (most recent at top)
-  history.slice().reverse().forEach(h => {
-    const hb = document.createElement('button');
-    hb.className='line';
-    hb.setAttribute('aria-pressed','false');
-    hb.textContent = displayText(h);
-    hb.dataset.id = h.id;
-    el.history.appendChild(hb);
-  });
-  
-  // Render active lines
+
   current.items.forEach((it, idx)=>{
     const btn = document.createElement('button');
     btn.setAttribute('role','option');
     btn.setAttribute('aria-pressed','false');
-    btn.className='line';
-    
+    btn.className = 'line';
+    btn.style.cursor = 'pointer';
+    btn.dataset.index = idx;
+    btn.dataset.id = it.id;
+
     try{
-      if (!validateLine(it)){
-        console.warn('Invalid line at render index', idx, it);
-        btn.textContent = '[invalid]';
+      if (it.kind === 'imp') {
+        // Split into left (antecedent) and right (consequent) spans
+        btn.innerHTML = `
+          <span class="expr">
+            <span class="ante-part">${exprText(it.left, true)}</span>
+            <span class="arrow"> → </span>
+            <span class="cons-part">${exprText(it.right, true)}</span>
+          </span>`;
+      } else if (it.kind === 'ante' || it.kind === 'derived') {
+        btn.innerHTML = `<span class="line-text">${exprText(it.expr)}</span>`;
+      } else if (it.kind === 'conj') {
+        btn.innerHTML = `<span class="line-text">${exprText(it.left, true)} ∧ ${exprText(it.right, true)}</span>`;
       } else {
-        btn.textContent = displayText(it);
+        btn.textContent = '[invalid]';
       }
     }catch(e){
       console.error('Render error at index', idx, e);
       btn.textContent = '[invalid]';
     }
-    
-    btn.style.cursor='pointer';
-    btn.dataset.index = idx;
-    btn.dataset.id = it.id;
+
     btn.addEventListener('click', onSelect);
     btn.addEventListener('keydown', (e)=>{
-      if(e.key==='Enter'||e.key===' ') {
+      if(e.key==='Enter' || e.key===' '){
         e.preventDefault();
         btn.click();
       }
     });
+
     el.lines.appendChild(btn);
   });
-  
+
   updateScore();
-  
-  // Ensure last line is visible
-  requestAnimationFrame(() => {
-    if (!el.lines) return;
-    const last = el.lines.lastElementChild;
-    if (!last) return;
-    const rect = last.getBoundingClientRect();
-    const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
-    const bottomBarHeight = 80;
-    if (rect.bottom > viewportHeight - bottomBarHeight){
-      last.scrollIntoView({ block: 'end', behavior: 'smooth' });
-      try{
-        window.scrollBy({ top: -bottomBarHeight, behavior: 'smooth' });
-      }catch(e){}
-    }
-  });
 }
+
+
 
 /* ============================================================================
    EVENT HANDLERS
@@ -1017,83 +1090,132 @@ function onSelect(e){
   }
 }
 
-function handleCorrectPair(i, j, ai, bi){
-  const firstIndex = Math.min(i,j);
-  const secondIndex = Math.max(i,j);
-  const firstId = current.items[firstIndex].id;
-  const secondId = current.items[secondIndex].id;
-  
-  const before = measurePositions(el.lines);
-  
-  const firstEl = el.lines.querySelector(`[data-id="${firstId}"]`);
-  const secondEl = el.lines.querySelector(`[data-id="${secondId}"]`);
-  
-  if (secondEl && firstEl){
-    secondEl.classList.add('merge-over');
-    const r1 = firstEl.getBoundingClientRect();
-    const r2 = secondEl.getBoundingClientRect();
-    const dx = r1.left - r2.left;
-    const dy = r1.top - r2.top;
-    secondEl.style.transition = `transform ${ANIMATION_TIMINGS.MERGE_SLIDE_MS}ms ease, opacity ${ANIMATION_TIMINGS.MERGE_FADE_MS}ms ease`;
-    secondEl.style.transform = `translate(${dx}px, ${dy}px)`;
-    
-    setTimeout(()=>{
-      firstEl.classList.add('fading');
-      secondEl.classList.add('fading');
-    }, ANIMATION_TIMINGS.MERGE_SLIDE_MS);
+function handleCorrectPair(i, j){
+  // Determine which index is antecedent-like vs implication
+  const anteIdx = (current.items[i].kind === 'ante' || current.items[i].kind === 'derived') ? i : j;
+  const impIdx  = (anteIdx === i) ? j : i;
+
+  const anteLine = current.items[anteIdx];
+  const impLine  = current.items[impIdx];
+  const anteId = anteLine?.id;
+  const impId  = impLine?.id;
+
+  const anteEl = el.lines.querySelector(`[data-id="${anteId}"]`);
+  const impEl  = el.lines.querySelector(`[data-id="${impId}"]`);
+  if (!anteEl || !impEl || !impLine || impLine.kind !== 'imp'){
+    return replaceWithConsequentAndRefill(anteIdx, impIdx);
   }
-  
-  const imp = ai.kind==='imp' ? ai : bi.kind==='imp' ? bi : null;
-  const derived = imp && imp.right ? mkDerived(cloneExpr(imp.right)) : null;
-  
+
+  // Highlight text we want to glow/scale
+  const anteTextEl  = anteEl.querySelector('.line-text') || anteEl;
+  const impAnteText = impEl.querySelector('.ante-part')   || impEl;
+
+  anteEl.classList.add('glow');
+  impEl.classList.add('glow', 'merge-over');
+  anteTextEl.classList.add('glow-text','scale-up');
+  impAnteText.classList.add('glow-text','scale-up');
+
+  // FLIP-style ghost drifting from antecedent to conditional
+  const gridRect = el.lines.getBoundingClientRect();
+  const r1 = anteEl.getBoundingClientRect();
+  const r2 = impEl.getBoundingClientRect();
+  const dx = (r2.left - r1.left);
+  const dy = (r2.top  - r1.top);
+
+  const ghost = anteEl.cloneNode(true);
+  ghost.classList.add('ghost');
+  ghost.style.left   = `${r1.left - gridRect.left}px`;
+  ghost.style.top    = `${r1.top  - gridRect.top}px`;
+  ghost.style.width  = `${r1.width}px`;
+  ghost.style.height = `${r1.height}px`;
+
+  // Hide the real antecedent during drift
+  anteEl.style.visibility = 'hidden';
+  el.lines.appendChild(ghost);
+
+  requestAnimationFrame(()=>{
+    ghost.style.transform = `translate(${dx}px, ${dy}px)`;
+    ghost.style.opacity = '0.92';
+  });
+
   setTimeout(()=>{
-    history.push(current.items[firstIndex]);
-    history.push(current.items[secondIndex]);
+    // Clean up glow visuals
+    anteEl.classList.remove('glow');
+    impEl.classList.remove('glow', 'merge-over');
+    anteTextEl.classList.remove('glow-text','scale-up');
+    impAnteText.classList.remove('glow-text','scale-up');
+
+    // Build consequent
+    const consequent = mkLineAnte(impLine.right);
     
-    const usedIds = new Set([firstId, secondId]);
-    const newItems = current.items.filter(it => !usedIds.has(it.id));
+    // Clone array with consequent in place
+    let next = [...current.items];
+    next[impIdx] = consequent;
     
-    if (derived){
-      const dk = keyOfLine(derived);
-      const existingKeys = new Set(newItems.map(keyOfLine));
-      if (!existingKeys.has(dk)) newItems.splice(firstIndex, 0, derived);
+    // Temporarily remove the antecedent slot to analyze what we have
+    const beforeFiller = next.filter((_, idx) => idx !== anteIdx);
+    const { anteMap, impMap } = analyzeBoardState(beforeFiller);
+    
+    // Count pairs without the filler
+    const pairCountBefore = distinctPairKeys(beforeFiller).size;
+    
+    let filler;
+    
+    // If we'll have fewer than 2 pairs, make filler create a match
+    if (pairCountBefore < 2) {
+      // Try to find an implication that needs an antecedent
+      const impNeedingAnte = [...impMap.keys()].find(k => !anteMap.has(k));
+      if (impNeedingAnte) {
+        // Filler becomes the matching antecedent
+        const leftExpr = beforeFiller.find(l => l.kind==='imp' && exprKey(l.left)===impNeedingAnte)?.left;
+        filler = mkLineAnte(cloneExpr(leftExpr));
+      } else {
+        // Try to find an antecedent that needs an implication
+        const anteNeedingImp = [...anteMap.keys()].find(k => !impMap.has(k));
+        if (anteNeedingImp) {
+          // Filler becomes the matching implication
+          const leftExpr = beforeFiller.find(l => (l.kind==='ante'||l.kind==='derived') && exprKey(l.expr)===anteNeedingImp)?.expr;
+          const rightExpr = pickExprByDifficulty(gameOpts);
+          filler = mkLineImp(cloneExpr(leftExpr), rightExpr);
+        } else {
+          // Create a brand new matching pair - filler is the antecedent
+          const leftExpr = mkAtom(pickSymbol());
+          const rightExpr = pickExprByDifficulty(gameOpts);
+          filler = mkLineAnte(cloneExpr(leftExpr));
+          // Add the matching implication
+          next.push(mkLineImp(cloneExpr(leftExpr), rightExpr));
+        }
+      }
+    } else {
+      // We have enough pairs, so filler can be a distractor
+      const forbidden = exprKey(impLine.left);
+      filler = genDistractorAvoiding(forbidden);
     }
     
-    const forbidden = imp && imp.left ? exprKey(imp.left) : null;
-    newItems.push(genDistractorAvoiding(forbidden));
-    
-    try{ assertWellFormedBoard(newItems); }
-    catch(e){ console.error('Pre-topup validation failed', e); }
-    
-    current.items = ensureAtLeastKPairs(newItems, 2, gameOpts);
-    
-    try{ assertWellFormedBoard(current.items); }
-    catch(e){ console.error('Post-topup validation failed', e); }
-    
-    console.log('[pairs/distinct]', distinctPairKeys(current.items).size, 'of', current.items.length);
-    
+    // Place the filler
+    next[anteIdx] = filler;
+
+    // Validate everything
+    try { assertWellFormedBoard(next); } catch(e){ console.warn('Post-merge validation', e); }
+
+    current.items = next;
+    state.selected = [];
     render();
-    const after = measurePositions(el.lines);
-    playFlip(el.lines, before, after);
-    
-    const consEl = derived ? el.lines.querySelector(`[data-id="${derived.id}"]`) : null;
-    if (consEl){
-      consEl.classList.add('consequent');
-      setTimeout(()=>consEl.classList.remove('consequent'), ANIMATION_TIMINGS.CONSEQUENT_HIGHLIGHT_MS);
-      consEl.scrollIntoView({behavior:'smooth', block:'center'});
+
+    // Pulse the newly inserted consequent
+    const newConsEl = el.lines.querySelector(`[data-id="${consequent.id}"]`);
+    if (newConsEl){
+      newConsEl.classList.add('consequent', 'consequent-pulse');
+      setTimeout(()=> newConsEl.classList.remove('consequent', 'consequent-pulse'),
+        ANIMATION_TIMINGS.CONSEQUENT_HIGHLIGHT_MS);
     }
-    
-    setTimeout(()=>{
-      el.lines.querySelectorAll('.merge-over, .fading').forEach(n=>{
-        n.classList.remove('merge-over','fading');
-        n.style.transform='';
-        n.style.opacity='';
-      });
-    }, ANIMATION_TIMINGS.CLEANUP_MS);
-    
-    state.selected=[];
-  }, ANIMATION_TIMINGS.MERGE_TOTAL_MS);
+
+    ghost.remove();
+    anteEl.style.visibility = '';
+  }, ANIMATION_TIMINGS.MERGE_SLIDE_MS);
 }
+
+
 
 /* ============================================================================
    GAME CONTROL
@@ -1111,6 +1233,9 @@ function startGame(mode){
   state.streak = 0;
   state.selected = [];
   current.items = [];
+  
+  render();
+  startTimer();
   
   try{ assertWellFormedBoard(current.items); }
   catch(e){ console.warn('startGame pre-assert failed', e); }
@@ -1263,6 +1388,7 @@ function initControls(){
       state.score=0;
       state.streak=0;
       state.selected=[];
+      stopTimer(); startTimer();
       scrollState.followLatest = true;
       render();
       showToast('Reset', false);

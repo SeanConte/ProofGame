@@ -28,13 +28,27 @@
   </header>
 
   <!-- Main container -->
-  <main class="container">
-    <!-- History + active line stack -->
-    <section id="lines" class="lines" aria-label="Proof lines"></section>
+<main class="container">
+  <!-- Big scoreboard band -->
+  <section id="scoreboard" class="scoreboard" aria-label="Scoreboard">
+    <div class="scorebox">
+      <div class="label">Score</div>
+      <div id="scoreVal" class="value">0</div>
+    </div>
+    <div class="scorebox">
+      <div class="label">Streak</div>
+      <div id="streakVal" class="value">0</div>
+    </div>
+    <div class="scorebox">
+      <div class="label">Time</div>
+      <div id="timerVal" class="value">00:00</div>
+    </div>
+  </section>
 
-    <!-- Play area / board the game uses -->
-    <section id="playarea" class="playarea" aria-label="Play area"></section>
-  </main>
+  <!-- Gameplay grid (2 columns × 4 rows) -->
+  <section id="lines" class="lines" aria-label="Options grid"></section>
+</main>
+
 
   <!-- Start menu (required for the game to appear) -->
   <div id="menu" class="menu">
