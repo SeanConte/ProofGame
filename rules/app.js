@@ -235,21 +235,50 @@ function replaceWithConsequentAndRefill(anteIdx, impIdx){
   
   // If we'll have fewer than 2 pairs, make filler create a match
   if (pairCountBefore < 2) {
-    const impNeedingAnte = [...impMap.keys()].find(k => !anteMap.has(k));
-    if (impNeedingAnte) {
-      const leftExpr = beforeFiller.find(l => l.kind==='imp' && exprKey(l.left)===impNeedingAnte)?.left;
-      filler = mkLineAnte(cloneExpr(leftExpr));
-    } else {
-      const anteNeedingImp = [...anteMap.keys()].find(k => !impMap.has(k));
-      if (anteNeedingImp) {
-        const leftExpr = beforeFiller.find(l => (l.kind==='ante'||l.kind==='derived') && exprKey(l.expr)===anteNeedingImp)?.expr;
-        const rightExpr = pickExprByDifficulty(gameOpts);
-        filler = mkLineImp(cloneExpr(leftExpr), rightExpr);
+    // Collect all possible matching opportunities
+    const impNeedingAnte = [...impMap.keys()].filter(k => !anteMap.has(k));
+    const anteNeedingImp = [...anteMap.keys()].filter(k => !impMap.has(k));
+    
+    const opportunities = [];
+    
+    // Add all implications that need antecedents
+    impNeedingAnte.forEach(key => {
+      const line = beforeFiller.find(l => l.kind==='imp' && exprKey(l.left)===key);
+      if (line) {
+        opportunities.push({ type: 'makeAnte', expr: line.left });
+      }
+    });
+    
+    // Add all antecedents that need implications
+    anteNeedingImp.forEach(key => {
+      const line = beforeFiller.find(l => (l.kind==='ante'||l.kind==='derived') && exprKey(l.expr)===key);
+      if (line) {
+        opportunities.push({ type: 'makeImp', expr: line.expr });
+      }
+    });
+    
+    if (opportunities.length > 0) {
+      // Randomly pick one opportunity
+      const chosen = opportunities[Math.floor(rng() * opportunities.length)];
+      
+      if (chosen.type === 'makeAnte') {
+        filler = mkLineAnte(cloneExpr(chosen.expr));
       } else {
-        const leftExpr = mkAtom(pickSymbol());
         const rightExpr = pickExprByDifficulty(gameOpts);
+        filler = mkLineImp(cloneExpr(chosen.expr), rightExpr);
+      }
+    } else {
+      // Create a brand new matching pair
+      const leftExpr = mkAtom(pickSymbol());
+      const rightExpr = pickExprByDifficulty(gameOpts);
+      
+      // Randomly decide if filler is antecedent or implication
+      if (rng() < 0.5) {
         filler = mkLineAnte(cloneExpr(leftExpr));
         next.push(mkLineImp(cloneExpr(leftExpr), rightExpr));
+      } else {
+        filler = mkLineImp(cloneExpr(leftExpr), rightExpr);
+        next.push(mkLineAnte(cloneExpr(leftExpr)));
       }
     }
   } else {
@@ -1163,27 +1192,50 @@ function handleCorrectPair(i, j){
     
     // If we'll have fewer than 2 pairs, make filler create a match
     if (pairCountBefore < 2) {
-      // Try to find an implication that needs an antecedent
-      const impNeedingAnte = [...impMap.keys()].find(k => !anteMap.has(k));
-      if (impNeedingAnte) {
-        // Filler becomes the matching antecedent
-        const leftExpr = beforeFiller.find(l => l.kind==='imp' && exprKey(l.left)===impNeedingAnte)?.left;
-        filler = mkLineAnte(cloneExpr(leftExpr));
-      } else {
-        // Try to find an antecedent that needs an implication
-        const anteNeedingImp = [...anteMap.keys()].find(k => !impMap.has(k));
-        if (anteNeedingImp) {
-          // Filler becomes the matching implication
-          const leftExpr = beforeFiller.find(l => (l.kind==='ante'||l.kind==='derived') && exprKey(l.expr)===anteNeedingImp)?.expr;
-          const rightExpr = pickExprByDifficulty(gameOpts);
-          filler = mkLineImp(cloneExpr(leftExpr), rightExpr);
+      // Collect all possible matching opportunities
+      const impNeedingAnte = [...impMap.keys()].filter(k => !anteMap.has(k));
+      const anteNeedingImp = [...anteMap.keys()].filter(k => !impMap.has(k));
+      
+      const opportunities = [];
+      
+      // Add all implications that need antecedents
+      impNeedingAnte.forEach(key => {
+        const line = beforeFiller.find(l => l.kind==='imp' && exprKey(l.left)===key);
+        if (line) {
+          opportunities.push({ type: 'makeAnte', expr: line.left });
+        }
+      });
+      
+      // Add all antecedents that need implications
+      anteNeedingImp.forEach(key => {
+        const line = beforeFiller.find(l => (l.kind==='ante'||l.kind==='derived') && exprKey(l.expr)===key);
+        if (line) {
+          opportunities.push({ type: 'makeImp', expr: line.expr });
+        }
+      });
+      
+      if (opportunities.length > 0) {
+        // Randomly pick one opportunity
+        const chosen = opportunities[Math.floor(rng() * opportunities.length)];
+        
+        if (chosen.type === 'makeAnte') {
+          filler = mkLineAnte(cloneExpr(chosen.expr));
         } else {
-          // Create a brand new matching pair - filler is the antecedent
-          const leftExpr = mkAtom(pickSymbol());
           const rightExpr = pickExprByDifficulty(gameOpts);
+          filler = mkLineImp(cloneExpr(chosen.expr), rightExpr);
+        }
+      } else {
+        // Create a brand new matching pair
+        const leftExpr = mkAtom(pickSymbol());
+        const rightExpr = pickExprByDifficulty(gameOpts);
+        
+        // Randomly decide if filler is antecedent or implication
+        if (rng() < 0.5) {
           filler = mkLineAnte(cloneExpr(leftExpr));
-          // Add the matching implication
           next.push(mkLineImp(cloneExpr(leftExpr), rightExpr));
+        } else {
+          filler = mkLineImp(cloneExpr(leftExpr), rightExpr);
+          next.push(mkLineAnte(cloneExpr(leftExpr)));
         }
       }
     } else {
@@ -1214,7 +1266,6 @@ function handleCorrectPair(i, j){
     anteEl.style.visibility = '';
   }, ANIMATION_TIMINGS.MERGE_SLIDE_MS);
 }
-
 
 
 /* ============================================================================
